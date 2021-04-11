@@ -15,7 +15,10 @@ import matplotlib.pyplot as plt
 
 class CoffmanGrahamLayout:
     def __call__(
-        self, dag: nx.DiGraph, max_width: tp.Optional[float] = None
+        self, 
+        dag: nx.DiGraph, 
+        max_width: tp.Optional[float] = None,
+        plot_params: tp.Optional[tp.Dict[str, tp.Any]] = None
     ) -> tp.Dict[tp.Hashable, tp.Tuple[float, float]]:
         _dag = nx.algorithms.dag.transitive_reduction(dag)
         node_to_topsort_label = self._sort_nodes_topologically(_dag)
@@ -48,13 +51,17 @@ class CoffmanGrahamLayout:
             layers=layers_w_dummies,
             layout=layout
         )
+        if plot_params is None:
+            plot_params = dict(
+                axis_type='on',
+                node_size=2000,
+                font_size=20,
+                with_labels=True
+            )
         self._draw_dag(
             dag=_dag,
             layout=refined_layout,
-            axis_type='on',
-            node_size=2000,
-            font_size=20,
-            with_labels=True
+            **plot_params
         )
         
     @staticmethod
@@ -276,30 +283,29 @@ class CoffmanGrahamLayout:
         )
         print(f'Before refinement: {initial_n_edge_crossings}')
         
-        topsorted_nodes = [
+        reverse_topsorted_nodes = [
             node 
             for node, coordinates in sorted(
-                layout.items(), key=lambda p: p[1][1]
+                layout.items(), key=lambda p: p[1][::-1]
             )
         ]
         refined_layout = layout.copy()
         
-        for layer in layers:
-            offsets_in_layer = set()
-            for node in layer:
-                refined_offset = layout[node][0]
-                
-                offsets_of_children = [
-                    layout[child][0]
-                    for child in dag.successors(node)
-                ]
-                if offsets_of_children:
-                    refined_offset = np.median(offsets_of_children)
-                    
-                if refined_offset not in offsets_in_layer:
-                    refined_layout[node] = (refined_offset, layout[node][1])
-                offsets_in_layer.add(refined_offset)
-                    
+        used_gridpoints = set()
+        for node in reverse_topsorted_nodes:
+            refined_offset = refined_layout[node][0]
+
+            offsets_of_children = [
+                refined_layout[child][0]
+                for child in dag.successors(node)
+            ]
+            if offsets_of_children:
+                refined_offset = np.median(offsets_of_children)
+
+            new_coordinates = (refined_offset, layout[node][1])
+            if new_coordinates not in used_gridpoints:
+                refined_layout[node] = new_coordinates
+            used_gridpoints.add(new_coordinates)
          
         final_n_edge_crossings = (
             CoffmanGrahamLayout._count_edge_crossings(
