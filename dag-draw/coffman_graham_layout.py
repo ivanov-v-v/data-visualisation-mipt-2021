@@ -18,7 +18,8 @@ class CoffmanGrahamLayout:
         self, 
         dag: nx.DiGraph, 
         max_width: tp.Optional[float] = None,
-        plot_params: tp.Optional[tp.Dict[str, tp.Any]] = None
+        plot_params: tp.Optional[tp.Dict[str, tp.Any]] = None,
+        verbose: bool = False
     ) -> tp.Dict[tp.Hashable, tp.Tuple[float, float]]:
         _dag = nx.algorithms.dag.transitive_reduction(dag)
         node_to_topsort_label = self._sort_nodes_topologically(_dag)
@@ -49,7 +50,8 @@ class CoffmanGrahamLayout:
         refined_layout = self._refine_layout_minimizing_edge_crossings(
             dag=_dag,
             layers=layers_w_dummies,
-            layout=layout
+            layout=layout,
+            verbose=verbose
         )
         if plot_params is None:
             plot_params = dict(
@@ -272,7 +274,8 @@ class CoffmanGrahamLayout:
     def _refine_layout_minimizing_edge_crossings(
         dag: nx.DiGraph, 
         layers: tp.List[tp.List[tp.Hashable]],
-        layout: tp.Dict[tp.Hashable, tp.Tuple[float, float]]
+        layout: tp.Dict[tp.Hashable, tp.Tuple[float, float]],
+        verbose: bool = False
     ) -> tp.Dict[tp.Hashable, tp.Tuple[float, float]]:
         initial_n_edge_crossings = (
             CoffmanGrahamLayout._count_edge_crossings(
@@ -281,7 +284,6 @@ class CoffmanGrahamLayout:
                 layout=layout
             )
         )
-        print(f'Before refinement: {initial_n_edge_crossings}')
         
         reverse_topsorted_nodes = [
             node 
@@ -314,7 +316,11 @@ class CoffmanGrahamLayout:
                 layout=refined_layout
             )
         )
-        print(f'After refinement: {final_n_edge_crossings}')
+        
+        if verbose:
+            print('Heuristic minimization of the number of edge crossings')
+            print(f'Before refinement: {initial_n_edge_crossings}')
+            print(f'After refinement: {final_n_edge_crossings}')
         
         if final_n_edge_crossings >= initial_n_edge_crossings:
             return layout
