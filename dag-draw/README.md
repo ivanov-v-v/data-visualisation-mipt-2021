@@ -1,0 +1,1 @@
+Запустить код можно на Colab: [ссылка](https://colab.research.google.com/drive/1Sp4Br0ihxEhqUqgXL3EA26QfoR2Q1f8F?usp=sharing)
