@@ -1,6 +1,7 @@
 
 import collections
 import copy
+import itertools
 import pprint
 import typing as tp
 import uuid
@@ -42,9 +43,14 @@ class CoffmanGrahamLayout:
             node_to_layer=node_to_layer
         )
         layout = self._get_layout(layers=layers_w_dummies)
+        refined_layout = self._refine_layout_minimizing_edge_crossings(
+            dag=_dag,
+            layers=layers_w_dummies,
+            layout=layout
+        )
         self._draw_dag(
             dag=_dag,
-            layout=layout,
+            layout=refined_layout,
             axis_type='on',
             node_size=2000,
             font_size=20,
@@ -233,6 +239,81 @@ class CoffmanGrahamLayout:
                 layout[node] = (pos_in_layer, layer)
                 
         return layout
+    
+    @staticmethod
+    def _count_edge_crossings(
+        dag: nx.DiGraph,         
+        layers: tp.List[tp.List[tp.Hashable]],
+        layout: tp.Dict[tp.Hashable, tp.Tuple[float, float]]
+    ) -> int:
+        n_edge_crossings = 0
+        for source_layer in layers[:-1]:
+            for source_1, source_2 in itertools.combinations(source_layer, 2):
+                if layout[source_1][0] > layout[source_2][0]:
+                    source_1, source_2 = source_2, source_1
+                sinks_1 = list(dag.successors(source_1))
+                sinks_2 = list(dag.successors(source_2))
+                for sink_1, sink_2 in itertools.product(sinks_1, sinks_2):
+                    if sink_1 == sink_2:
+                        continue
+                    sink_1_x, sink_2_x = layout[sink_1][0], layout[sink_2][0]
+                    if sink_1_x > sink_2_x:
+                        n_edge_crossings += 1
+        return n_edge_crossings
+
+    @staticmethod
+    def _refine_layout_minimizing_edge_crossings(
+        dag: nx.DiGraph, 
+        layers: tp.List[tp.List[tp.Hashable]],
+        layout: tp.Dict[tp.Hashable, tp.Tuple[float, float]]
+    ) -> tp.Dict[tp.Hashable, tp.Tuple[float, float]]:
+        initial_n_edge_crossings = (
+            CoffmanGrahamLayout._count_edge_crossings(
+                dag=dag,
+                layers=layers,
+                layout=layout
+            )
+        )
+        print(f'Before refinement: {initial_n_edge_crossings}')
+        
+        topsorted_nodes = [
+            node 
+            for node, coordinates in sorted(
+                layout.items(), key=lambda p: p[1][1]
+            )
+        ]
+        refined_layout = layout.copy()
+        
+        for layer in layers:
+            offsets_in_layer = set()
+            for node in layer:
+                refined_offset = layout[node][0]
+                
+                offsets_of_children = [
+                    layout[child][0]
+                    for child in dag.successors(node)
+                ]
+                if offsets_of_children:
+                    refined_offset = np.median(offsets_of_children)
+                    
+                if refined_offset not in offsets_in_layer:
+                    refined_layout[node] = (refined_offset, layout[node][1])
+                offsets_in_layer.add(refined_offset)
+                    
+         
+        final_n_edge_crossings = (
+            CoffmanGrahamLayout._count_edge_crossings(
+                dag=dag,
+                layers=layers,
+                layout=refined_layout
+            )
+        )
+        print(f'After refinement: {final_n_edge_crossings}')
+        
+        if final_n_edge_crossings >= initial_n_edge_crossings:
+            return layout
+        
+        return refined_layout
     
     @staticmethod
     def _draw_dag(
